@@ -1,0 +1,16 @@
+# Apple ignores
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# build ignores
+crAPU/Build/*
+!crAPU/Build/Makefile
+!crAPU/Build/makedep.mk
+
+# jlink ignores
+crAPU/jlink.*
+
+# vscode ignores
+.vscode
