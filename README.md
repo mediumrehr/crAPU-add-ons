@@ -18,7 +18,7 @@ download install file from [segger.com](https://www.segger.com/products/debug-pr
 ## Build
 
 ```
-cd SAOwner/
+cd crAPU/
 make -C Build/
 ```
 
@@ -35,7 +35,7 @@ JLinkGDBServer -if SWD -device ATSAMD21G18
 Start gdb in another tba
 
 ```
-arm-none-eabi-gdb Build/SAOwner.elf
+arm-none-eabi-gdb Build/crAPU.elf
 (gdb) target extended-remote :2331
 ```
 
