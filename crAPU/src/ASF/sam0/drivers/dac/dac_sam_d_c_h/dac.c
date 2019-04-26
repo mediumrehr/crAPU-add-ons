@@ -244,7 +244,7 @@ enum status_code dac_init(
 
 	/* Set up the DAC VOUT pin */
 	pin_conf.mux_position = MUX_PA02B_DAC_VOUT;
-	pin_conf.direction    = SYSTEM_PINMUX_PIN_DIR_INPUT;
+	pin_conf.direction    = SYSTEM_PINMUX_PIN_DIR_OUTPUT;
 	pin_conf.input_pull   = SYSTEM_PINMUX_PIN_PULL_NONE;
 	system_pinmux_pin_set_config(PIN_PA02B_DAC_VOUT, &pin_conf);
 

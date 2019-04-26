@@ -66,31 +66,52 @@ uint16_t triangle_wave_buf[256];
 #endif
 
 /* Other global variables */
-uint16_t i, arr_index;
+uint16_t arr_index;
 uint16_t nextVal = 0;
+
+uint16_t sin_table[20] = { 511, 669, 811, 924, 997, 1022, 997, 924, 811, 669, 511, 353, 211, 98, 25, 0, 25, 98, 211, 353 };
+uint16_t saw_table[20] = { 0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900, 950 };
 
 /* Timer 3 interrupt handler */
 void TC3_Handler(void)
 {
+	// static uint16_t count = 0;
+	static uint16_t dacCount = 0;
+
 	TC3->COUNT16.INTFLAG.reg = TC_INTFLAG_MC0;
-	#if WAVE_MODE==SINE_WAVE
+
+	// make sure DAC is done setting previous value
+	while (dac_inst.hw->STATUS.reg & DAC_STATUS_SYNCBUSY) { ; };
+	// set new DAC value
+	dac_inst.hw->DATA.reg = sin_table[dacCount];
+
+	dacCount = (dacCount + 1) % 20;
+
+	// count++;
+	// if (count < 10) {return;}
+	// count = 10;
+	// if (count < 20) {count = 0;}
+	// #if WAVE_MODE==SINE_WAVE
 	//dac_chan_write(&dac_inst, 0, newVal);
 	//nextVal = 
-	dac_chan_write(&dac_inst, 0, sine_wave_buf[arr_index++]);
-	if (arr_index == DEGREES_PER_CYCLE) {
-		arr_index = 0;
-	}
-	#elif WAVE_MODE==SAW_TOOTH_WAVE
-	dac_chan_write(&dac_inst, 0, sawtooth_wave_buf[arr_index++]);
-	if (arr_index == 256) {
-		arr_index = 0;
-	}
-	#elif WAVE_MODE==TRIANGLE_WAVE
-	dac_chan_write(&dac_inst, 0, triangle_wave_buf[arr_index++]);
-	if (arr_index == 256) {
-		arr_index = 0;
-	}
-	#endif
+	// dac_chan_write(&dac_inst, 0, sine_wave_buf[arr_index++]);
+	// if ((count%10) == 0) {
+	// 	port_pin_toggle_output_level(LED1_PIN);
+	// }
+	// if (arr_index == DEGREES_PER_CYCLE) {
+	// 	arr_index = 0;
+	// }
+	// #elif WAVE_MODE==SAW_TOOTH_WAVE
+	// dac_chan_write(&dac_inst, DAC_CHANNEL_0, saw[count]);
+	// if (arr_index == 256) {
+	// 	arr_index = 0;
+	// }
+	// #elif WAVE_MODE==TRIANGLE_WAVE
+	// dac_chan_write(&dac_inst, 0, triangle_wave_buf[arr_index++]);
+	// if (arr_index == 256) {
+	// 	arr_index = 0;
+	// }
+	// #endif
 }
 
 /* Timer 3 Initialization */
@@ -100,7 +121,11 @@ void timer_init(void)
 	struct tc_events conf_tc_events = {.generate_event_on_compare_channel[0] = 1};
 	tc_get_config_defaults(&conf_tc);
 	conf_tc.clock_source = GCLK_GENERATOR_0;
+	//conf_tc.counter_size = TC_COUNTER_SIZE_8BIT;
+	conf_tc.clock_prescaler = TC_CLOCK_PRESCALER_DIV1;
 	conf_tc.wave_generation = TC_WAVE_GENERATION_MATCH_FREQ;
+	// conf_tc.counter_8_bit.value = 0;
+	// conf_tc.counter_8_bit.period = 40;
 	conf_tc.counter_16_bit.compare_capture_channel[0] = 0xFFFF;
 	tc_init(&tc_inst, TC3, &conf_tc);
 	tc_enable_events(&tc_inst, &conf_tc_events);
@@ -108,6 +133,7 @@ void timer_init(void)
 	tc_stop_counter(&tc_inst);
 	/* Enable TC3 match/capture channel 0 interrupt */
 	TC3->COUNT16.INTENSET.reg = TC_INTENSET_MC0;
+	// tc_set_compare_value(&tc_inst, 0, 30);
 	/* Enable TC3 module interrupt */
 	NVIC_EnableIRQ(TC3_IRQn);
 }
@@ -116,12 +142,14 @@ void timer_init(void)
 void dac_initialize(void)
 {
 	struct dac_config conf_dac;
-	struct dac_events conf_dac_events = {.on_event_start_conversion = 1};
+	//struct dac_events conf_dac_events = {.on_event_start_conversion = 1};
 	dac_get_config_defaults(&conf_dac);
-	conf_dac.clock_source = GCLK_GENERATOR_0;
-	conf_dac.reference = DAC_REFERENCE_INT1V;
-	dac_init(&dac_inst, DAC, &conf_dac);
-	dac_enable_events(&dac_inst, &conf_dac_events);
+	//conf_dac.clock_source = GCLK_GENERATOR_0;
+	conf_dac.reference = DAC_REFERENCE_AVCC;
+	if (dac_init(&dac_inst, DAC, &conf_dac) != STATUS_OK) {
+		port_pin_set_output_level(LED0_PIN, true);
+	}
+	//dac_enable_events(&dac_inst, &conf_dac_events);
 	dac_enable(&dac_inst);
 }
 
@@ -139,26 +167,26 @@ void evsys_init(void)
 }
 
 /* Initialize the selected waveform buffer with output data */
-void buffer_init(void)
-{
-	#if WAVE_MODE==SINE_WAVE
-	for (i = 0; i < DEGREES_PER_CYCLE; i++)	{
-		sine_wave_buf[i] = (uint16_t)(511 + (511*sin((double)i*DEGREE)));
-		//sine_wave_buf[i] = 1023;
-	}
-	#elif WAVE_MODE==SAW_TOOTH_WAVE
-	for (i = 0; i < 256; i++) {
-		sawtooth_wave_buf[i] = i*4;
-	}
-	#elif WAVE_MODE==TRIANGLE_WAVE
-	for (i = 0; i < 128; i++) {
-		triangle_wave_buf[i] = i*8;
-	}
-	for (i = 128; i < 256; i++) {
-		triangle_wave_buf[i] = 1023 - (i*8);
-	}
-	#endif
-}
+// void buffer_init(void)
+// {
+// 	#if WAVE_MODE==SINE_WAVE
+// 	for (i = 0; i < DEGREES_PER_CYCLE; i++)	{
+// 		sine_wave_buf[i] = (uint16_t)(511 + (511*sin((double)i*DEGREE)));
+// 		//sine_wave_buf[i] = 1023;
+// 	}
+// 	#elif WAVE_MODE==SAW_TOOTH_WAVE
+// 	for (i = 0; i < 256; i++) {
+// 		sawtooth_wave_buf[i] = i*4;
+// 	}
+// 	#elif WAVE_MODE==TRIANGLE_WAVE
+// 	for (i = 0; i < 128; i++) {
+// 		triangle_wave_buf[i] = i*8;
+// 	}
+// 	for (i = 128; i < 256; i++) {
+// 		triangle_wave_buf[i] = 1023 - (i*8);
+// 	}
+// 	#endif
+// }
 
 /** Configure LED0, turn it off*/
 static void config_led(void)
@@ -186,9 +214,17 @@ static void config_pins(void)
 	port_pin_set_config(LED2_PIN, &pin_conf);
 	port_pin_set_config(PIN_PA08, &pin_conf); // shutdown
 	port_pin_set_output_level(LED0_PIN, false);
-	port_pin_set_output_level(LED1_PIN, true);
-	port_pin_set_output_level(LED2_PIN, false);
+	port_pin_set_output_level(LED1_PIN, false);
+	port_pin_set_output_level(LED2_PIN, true);
 	port_pin_set_output_level(PIN_PA08, false);
+}
+
+uint16_t delay() {
+	uint16_t i = 100;
+	while (i) {
+		i--;
+	}
+	return i;
 }
 
 /* Main function */
@@ -196,25 +232,31 @@ int main(void)
 {
 	system_init();
 	timer_init();
+	config_pins();
 	dac_initialize();
 	evsys_init();
-	buffer_init();
-	config_pins();
+	// buffer_init();
+	
 	/* Set the TC3 compare value corresponding to specified frequency */
-	#if WAVE_MODE==SINE_WAVE
-	tc_set_compare_value(&tc_inst, 0, \
-	system_gclk_gen_get_hz(GCLK_GENERATOR_0));
-	//system_gclk_gen_get_hz(GCLK_GENERATOR_0)/(FREQUENCY*360));
-	#else
-	tc_set_compare_value(&tc_inst, 0, \
-	system_gclk_gen_get_hz(GCLK_GENERATOR_0)/(FREQUENCY*256));
-	#endif
+	//tc_set_compare_value(&tc_inst, 0, 10); // ~22.7kHz
+	uint16_t freq = 440;
+	tc_set_compare_value(&tc_inst, 0, system_gclk_gen_get_hz(GCLK_GENERATOR_0)/(freq*20) - 1);
+	// dac_chan_write(&dac_inst, 0, 1000);
+
 	/* Start TC3 timer */
 	tc_start_counter(&tc_inst);
 	/* Enable global interrupt */
 	system_interrupt_enable_global();
 	
+	uint16_t i = 0;
 	while (true) {
+		// dac_chan_write(&dac_inst, DAC_CHANNEL_0, i);
+		// i = (i + 10) % 0x3FF;
+        // if (++i == 0x3FF) {
+        //     i = 0;
+        // }
 
+		// port_pin_toggle_output_level(LED1_PIN);
+		//delay();
 	}
 }
