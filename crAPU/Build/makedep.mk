@@ -14,6 +14,14 @@ src\ASF\sam0\drivers\events\events_sam_d_r_h\events.c
 
 src\ASF\sam0\drivers\port\port.c
 
+src\ASF\sam0\drivers\sercom\i2c\i2c_sam0\i2c_slave.c
+
+src\ASF\sam0\drivers\sercom\i2c\i2c_sam0\i2c_slave_interrupt.c
+
+src\ASF\sam0\drivers\sercom\sercom.c
+
+src\ASF\sam0\drivers\sercom\sercom_interrupt.
+
 src\ASF\common2\boards\user_board\init.c
 
 src\ASF\common\utils\interrupt\interrupt_sam_nvic.c
