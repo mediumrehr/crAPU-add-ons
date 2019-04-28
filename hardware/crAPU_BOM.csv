@@ -1,0 +1,18 @@
+﻿DEF CON 26 crAPU Add-on Bill of Materials,,,,,,
+April 2019,,,,,,
+@mediumrehr,,,,,,
+,,,,,,
+Part,Value,Package,Part Number,Description,Digikey link,notes
+"C1, 6, 8, 10-12",0.1uF,603,,Capacitor,,
+C2,0.33uF,603,,Capacitor,,
+C4,1uF,603,,Capacitor,,
+"C7, 9",22pF,603,,Capacitor,,
+D1-3,white,1206,,LED,,
+"J1, (2)*",2x2,"0.1"" pitch",,SAO Male header Connector,,*scaremin requires one; zinthesizer requires two
+J3,8Ohm/800mW,15mm Dia.,,speaker,https://www.digikey.com/product-detail/en/soberton-inc/SP-1504/433-1106-ND/3973690,
+L1,FB - 30Ohm,603,,Inductor,,
+"R1, 2, 11",20K,805,,Resistor,,
+R3-5,100,603,,Resistor,,
+U1,,8-SOIC,LM4862,IC AMP AUDIO PWR .825W,https://www.digikey.com/product-detail/en/texas-instruments/LM4862MX-NOPB/LM4862MX-NOPBCT-ND/3526986,
+U4,,48-TQFP,ATSAMD21G18A,IC MCU 32BIT 256KB FLASH,https://www.digikey.com/product-detail/en/microchip-technology/ATSAMD21G18A-AUT/ATSAMD21G18A-AUTCT-ND/4878879,
+Y1,32.768KHz,2-SMD,ABS06-127-32.768KHZ-T,Crystal,https://www.digikey.com/product-detail/en/abracon-llc/ABS06-127-32.768KHZ-T/535-14513-1-ND/8827204,
