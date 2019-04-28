@@ -32,9 +32,6 @@
 #include <math.h>
 #include <string.h>
 
-#define DEGREES_PER_CYCLE 360
-/* one degree is equal to 0.0174532925 radian */
-#define DEGREE 0.0174532925
 /* Waveform type macros */ 
 #define SINE_WAVE		0
 #define SAW_TOOTH_WAVE	1
@@ -42,9 +39,10 @@
 
 /* Waveform selection macro - Selects any one of the three waveforms */
 #define WAVE_MODE SINE_WAVE
-/* Waveform Frequency in Hz, specify a value less than 970Hz for 
-   sine wave and less than 1360Hz for other two waves */
-#define FREQUENCY 440
+
+#define WAVE_RES 32
+
+#define PI 3.14159265358979f
 
 /* Function Prototypes */
 void timer_init(void);
@@ -52,14 +50,14 @@ void dac_initialize(void);
 void configure_i2c_slave(void);
 void configure_i2c_slave_callbacks(void);
 void evsys_init(void);
-void buffer_init(void);
+void waveforms_init(void);
 
 void i2c_read_request_callback(struct i2c_slave_module *const module);
 void i2c_slave_read_complete_callback(struct i2c_slave_module *const module);
 void i2c_write_request_callback(struct i2c_slave_module *const module);
 void i2c_slave_write_complete_callback(struct i2c_slave_module *const module);
 
-void noteOn(uint8_t midiNote, uint8_t volume);
+void noteOn(uint8_t newMidiNote, uint8_t newVolume);
 void noteOff(void);
 
 /* Driver module structure declaration */
@@ -71,39 +69,40 @@ struct i2c_slave_module i2c_slave_inst;
 static struct i2c_slave_packet packet_in;
 static uint8_t read_buffer_in [DATA_LENGTH];
 
-/* Buffer variable declaration */
-#if WAVE_MODE==SINE_WAVE
-uint16_t sine_wave_buf[DEGREES_PER_CYCLE];
-#elif WAVE_MODE==SAW_TOOTH_WAVE
-uint16_t sawtooth_wave_buf[256];
-#elif WAVE_MODE==TRIANGLE_WAVE
-uint16_t triangle_wave_buf[256];
-#endif
-
 /* Other global variables */
-uint16_t freq = 0;
+uint8_t note = 0;
+uint8_t volume = 0;
 uint16_t arr_index;
 uint16_t nextVal = 0;
 
+uint16_t I2C_ADDR = 0x021A;
+
+// lookup table for midi number to frequency
 uint16_t volatile midi_table[128] = { 8, 9, 9, 10, 10, 11, 12, 12, 13, 14, 15, 15, 16, 17, 18, 19, 21, 22, 23, 24, 26, 28, 29, 31, 33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 62, 65, 69, 73, 78, 82, 87, 92, 98, 104, 110, 117, 123, 131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247, 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494, 523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988, 1047, 1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217, 2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951, 4186, 4435, 4699, 4978, 5274, 5588, 5920, 6272, 6645, 7040, 7459, 7902, 8372, 8870, 9397, 9956, 10548, 11175, 11840, 12544 };
 
-uint16_t sin_table[20] = { 511, 669, 811, 924, 997, 1022, 997, 924, 811, 669, 511, 353, 211, 98, 25, 0, 25, 98, 211, 353 };
-uint16_t saw_table[20] = { 0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900, 950 };
+// waveform tables
+// uint16_t sin_table[WAVE_RES] = { 511, 669, 811, 924, 997, 1022, 997, 924, 811, 669, 511, 353, 211, 98, 25, 0, 25, 98, 211, 353 };
+// uint16_t saw_table[WAVE_RES] = { 0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900, 950 };
+uint16_t sin_table[WAVE_RES] = { 0 };
+uint16_t saw_table[WAVE_RES] = { 0 };
+uint16_t tri_table[WAVE_RES] = { 0 };
+// volume adjusted table - so don't have to constantly do math that requires many cycles
+uint16_t vol_adj_table[WAVE_RES] = { 0 };
 
 /* Timer 3 interrupt handler */
 void TC3_Handler(void)
 {
-	// static uint16_t count = 0;
-	static uint16_t dacCount = 0;
+	static uint16_t tableIndex = 0;
 
 	TC3->COUNT16.INTFLAG.reg = TC_INTFLAG_MC0;
 
 	// make sure DAC is done setting previous value
 	while (dac_inst.hw->STATUS.reg & DAC_STATUS_SYNCBUSY) { ; };
 	// set new DAC value
-	dac_inst.hw->DATA.reg = sin_table[dacCount];
+	dac_inst.hw->DATA.reg = vol_adj_table[tableIndex];
+	// dac_inst.hw->DATA.reg = sin_table[tableIndex];
 
-	dacCount = (dacCount + 1) % 20;
+	tableIndex = (tableIndex + 1) % WAVE_RES;
 }
 
 void i2c_read_request_callback(struct i2c_slave_module *const module)
@@ -151,11 +150,8 @@ void timer_init(void)
 	struct tc_events conf_tc_events = {.generate_event_on_compare_channel[0] = 1};
 	tc_get_config_defaults(&conf_tc);
 	conf_tc.clock_source = GCLK_GENERATOR_0;
-	//conf_tc.counter_size = TC_COUNTER_SIZE_8BIT;
 	conf_tc.clock_prescaler = TC_CLOCK_PRESCALER_DIV1;
 	conf_tc.wave_generation = TC_WAVE_GENERATION_MATCH_FREQ;
-	// conf_tc.counter_8_bit.value = 0;
-	// conf_tc.counter_8_bit.period = 40;
 	conf_tc.counter_16_bit.compare_capture_channel[0] = 0xFFFF;
 	tc_init(&tc_inst, TC3, &conf_tc);
 	tc_enable_events(&tc_inst, &conf_tc_events);
@@ -163,7 +159,6 @@ void timer_init(void)
 	tc_stop_counter(&tc_inst);
 	/* Enable TC3 match/capture channel 0 interrupt */
 	TC3->COUNT16.INTENSET.reg = TC_INTENSET_MC0;
-	// tc_set_compare_value(&tc_inst, 0, 30);
 	/* Enable TC3 module interrupt */
 	NVIC_EnableIRQ(TC3_IRQn);
 }
@@ -172,14 +167,11 @@ void timer_init(void)
 void dac_initialize(void)
 {
 	struct dac_config conf_dac;
-	//struct dac_events conf_dac_events = {.on_event_start_conversion = 1};
 	dac_get_config_defaults(&conf_dac);
-	//conf_dac.clock_source = GCLK_GENERATOR_0;
 	conf_dac.reference = DAC_REFERENCE_AVCC;
 	if (dac_init(&dac_inst, DAC, &conf_dac) != STATUS_OK) {
 		port_pin_set_output_level(LED0_PIN, true);
 	}
-	//dac_enable_events(&dac_inst, &conf_dac_events);
 	dac_enable(&dac_inst);
 }
 
@@ -190,11 +182,8 @@ void configure_i2c_slave(void)
 	i2c_slave_get_config_defaults(&config_i2c_slave);
 
 	/* Change address and address_mode */
-	// 	config_i2c_slave.address      = IN_ADDRESS;
-	// 	config_i2c_slave.address_mode = I2C_SLAVE_ADDRESS_MODE_MASK;
-	config_i2c_slave.address	  = 0xFF; // upper i2c address range
-	config_i2c_slave.address_mask = 0x00; // lower i2c address range
-	config_i2c_slave.address_mode = I2C_SLAVE_ADDRESS_MODE_RANGE;
+	config_i2c_slave.address      = I2C_ADDR;
+	config_i2c_slave.address_mode = I2C_SLAVE_ADDRESS_MODE_MASK;
 	config_i2c_slave.pinmux_pad0  = PINMUX_PA22C_SERCOM3_PAD0;
 	config_i2c_slave.pinmux_pad1  = PINMUX_PA23C_SERCOM3_PAD1;
 
@@ -241,27 +230,23 @@ void evsys_init(void)
 	events_attach_user(&conf_event_resource, EVSYS_ID_USER_DAC_START);
 }
 
-/* Initialize the selected waveform buffer with output data */
-// void buffer_init(void)
-// {
-// 	#if WAVE_MODE==SINE_WAVE
-// 	for (i = 0; i < DEGREES_PER_CYCLE; i++)	{
-// 		sine_wave_buf[i] = (uint16_t)(511 + (511*sin((double)i*DEGREE)));
-// 		//sine_wave_buf[i] = 1023;
-// 	}
-// 	#elif WAVE_MODE==SAW_TOOTH_WAVE
-// 	for (i = 0; i < 256; i++) {
-// 		sawtooth_wave_buf[i] = i*4;
-// 	}
-// 	#elif WAVE_MODE==TRIANGLE_WAVE
-// 	for (i = 0; i < 128; i++) {
-// 		triangle_wave_buf[i] = i*8;
-// 	}
-// 	for (i = 128; i < 256; i++) {
-// 		triangle_wave_buf[i] = 1023 - (i*8);
-// 	}
-// 	#endif
-// }
+/* Initialize the waveform buffers with output data */
+void waveforms_init(void)
+{
+	uint8_t i;
+
+	for (i = 0; i < WAVE_RES; i++) {
+		sin_table[i] = (uint16_t)(511 + (511.0 * sin(2.0 * PI * (double)i / WAVE_RES)));
+		saw_table[i] = (uint16_t)(1023.0 * (double)i / (WAVE_RES - 1));
+	}
+	uint8_t halfWaveRes = WAVE_RES / 2;
+	for (i = 0; i < halfWaveRes; i++) {
+		tri_table[i] = (uint16_t)(1023.0 * (double)i / (double)halfWaveRes);
+	}
+	for (i = 0; i < (WAVE_RES - halfWaveRes); i++) {
+		tri_table[i] = 1023 - (uint16_t)(1023.0 * (double)i / WAVE_RES);
+	}
+}
 
 static void config_pins(void)
 {
@@ -275,24 +260,36 @@ static void config_pins(void)
 	port_pin_set_config(PIN_PA08, &pin_conf); // shutdown
 	port_pin_set_output_level(LED0_PIN, false);
 	port_pin_set_output_level(LED1_PIN, false);
-	port_pin_set_output_level(LED2_PIN, true);
+	port_pin_set_output_level(LED2_PIN, false);
 	port_pin_set_output_level(PIN_PA08, true);
 }
 
-void noteOn(uint8_t midiNote, uint8_t volume) {
-	// set new frequency
-	freq = midi_table[midiNote];
+void noteOn(uint8_t newMidiNote, uint8_t newVolume) {
+
+	volume = newVolume;
+	for (uint8_t i=0; i < WAVE_RES; i++) {
+		vol_adj_table[i] = (uint16_t)((float)sin_table[i] * ((float)volume / 127.0));
+	}
 	
-	// update timer trigger for new frequency
-	tc_set_compare_value(&tc_inst, 0, system_gclk_gen_get_hz(GCLK_GENERATOR_0)/(freq*20) - 1);
-	
-	// enable amplifier
-	port_pin_set_output_level(PIN_PA08, false);
+	if ((note != newMidiNote) && (newMidiNote < 128)) {
+		// set new note and frequency
+		note = newMidiNote;
+		uint16_t freq = midi_table[note];
+		
+		// update timer trigger for new frequency
+		tc_set_compare_value(&tc_inst, 0, system_gclk_gen_get_hz(GCLK_GENERATOR_0)/(freq*WAVE_RES) - 1);
+		
+		// enable amplifier
+		port_pin_set_output_level(PIN_PA08, false);
+	}
 }
 
 void noteOff() {
 	// disable amplifier
 	port_pin_set_output_level(PIN_PA08, true);
+
+	// set freq to zero
+	note = 128; // note off
 }
 
 uint16_t volatile delay(uint16_t millis) {
@@ -311,26 +308,14 @@ int main(void)
 	configure_i2c_slave();
 	configure_i2c_slave_callbacks();
 	evsys_init();
-	// buffer_init();
+	waveforms_init();
 
 	/* Start TC3 timer */
 	tc_start_counter(&tc_inst);
 	/* Enable global interrupt */
 	system_interrupt_enable_global();
 	
-	uint16_t i = 0;
 	while (true) {
-		// noteOn(60, 127);
-		// delay(500);
-		// noteOff();
-		// delay(500);
-		// noteOn(64, 127);
-		// delay(500);
-		// noteOff();
-		// delay(500);
-		// noteOn(67, 127);
-		// delay(500);
-		// noteOff();
-		// delay(500);
+
 	}
 }

@@ -1,7 +1,13 @@
 # crAPU-add-ons
-a crappy Audio Processing Unit SAO for DEF CON 26
+a crappy Audio Processing Unit SAO for DEF CON 26 badges; specifically, the zinthesizer was designed for the [DCZia DC26 badge](https://github.com/dczia/Defcon26-Badge) and the scaremin was designed for [Chris Gammell's](https://twitter.com/Chris_Gammell) Goodfear badge.
 
-## Setup
+crAPUs were designed to add audio sythesis/playback capabilities to badges that didn't have any. Since i2c would not be fast enough to drive an external digital to analog converter (DAC), the crAPUs feature their own processor (SAM21G18) to generate tones, and the note and volume can be selected over i2c.
+
+## Installing/Updating Firmware
+
+### Setup
+
+Firmware can be loaded with [Atmel Studio 7.0](https://www.microchip.com/mplab/avr-support/atmel-studio-7), or install the packages below to use with your preferred text editor and compile with arm gcc.
 
 #### arm gcc and gdb
 
@@ -13,16 +19,20 @@ brew install armmbed/formulae/arm-none-eabi-gcc
 
 #### jlink gdb server
 
-download install file from [segger.com](https://www.segger.com/products/debug-probes/j-link/tools/j-link-gdb-server/about-j-link-gdb-server/)
+Download install file from [segger.com](https://www.segger.com/products/debug-probes/j-link/tools/j-link-gdb-server/about-j-link-gdb-server/)
 
-## Build
+#### SWD connection
+
+Software debug (SWD) pins are labelled on the back-right of the boards. Connect SWDIO, SWCLK, 3V3, RESET, and GND as labelled. SWD requires the board to be powered external from the SWD port, so it's easiest to power the board from the 3V3 and GND pins on the SAO header.
+
+### Build
 
 ```
-cd crAPU/
+cd firmware/crAPU/
 make -C Build/
 ```
 
-## Load
+### Load
 
 #### jlink
 
@@ -46,3 +56,11 @@ Load new firmware, reset microcontroller, and run new code
 (gdb) monitor reset
 (gdb) c
 ```
+
+## Usage
+
+more coming soon...
+
+#### DCZia Badge
+
+Load my DCZia fork onto the DCZia badge. Attach the zinthesizer add-on, turn on the badge, and within menu mode, select button 7 (left column, third down). The display should now say it's in zinthesizer mode and each key will play a unique note.

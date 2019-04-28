@@ -5,12 +5,12 @@
 ._*
 
 # build ignores
-crAPU/Build/*
-!crAPU/Build/Makefile
-!crAPU/Build/makedep.mk
+firmware/crAPU/Build/*
+!firmware/crAPU/Build/Makefile
+!firmware/crAPU/Build/makedep.mk
 
 # jlink ignores
-crAPU/jlink.*
+firmware/crAPU/jlink.*
 
 # vscode ignores
 .vscode
