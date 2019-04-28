@@ -63,4 +63,4 @@ more coming soon...
 
 #### DCZia Badge
 
-Load my DCZia fork onto the DCZia badge. Attach the zinthesizer add-on, turn on the badge, and within menu mode, select button 7 (left column, third down). The display should now say it's in zinthesizer mode and each key will play a unique note.
+Load my [DCZia fork](https://github.com/mediumrehr/Defcon26-Badge) onto the DCZia badge. Attach the zinthesizer add-on, turn on the badge, and within menu mode, select button 7 (left column, third down). The display should now say it's in zinthesizer mode and each key will play a unique note.
