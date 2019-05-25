@@ -1,6 +1,8 @@
 # crAPU-add-ons
 a crappy Audio Processing Unit SAO for DEF CON 26 badges; specifically, the zinthesizer was designed for the [DCZia DC26 badge](https://github.com/dczia/Defcon26-Badge) and the scaremin was designed for [Chris Gammell's](https://twitter.com/Chris_Gammell) Goodfear badge.
 
+[video demo](https://www.youtube.com/watch?v=xHMZxM6m_c0)
+
 crAPUs were designed to add audio sythesis/playback capabilities to badges that didn't have any. Since i2c would not be fast enough to drive an external digital to analog converter (DAC), the crAPUs feature their own processor (SAM21G18) to generate tones, and the note and volume can be selected over i2c.
 
 ## Installing/Updating Firmware
