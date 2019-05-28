@@ -61,7 +61,7 @@ Load new firmware, reset microcontroller, and run new code
 
 ## Usage
 
-more coming soon...
+The crAPU can be controlled via i2c at address `0x1A`. The add-on will listen for two bytes, the first byte will set the note (0 - 127 using MIDI table), and the second byte will set the volume (0 - 127). If `128 (0x80)` is sent as the MIDI note, it will be interpreted as a note off command.
 
 #### DCZia Badge
 
